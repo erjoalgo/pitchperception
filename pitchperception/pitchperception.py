@@ -48,7 +48,7 @@ class PitchPerceptionChallenge(object):
     def beep(freq):
         """Beep at the given frequency in Hz."""
         cmd = ["beep", "-f", str(freq)]
-        subprocess.call(cmd)
+        subprocess.check_output(cmd)
 
     def curses_print(self, message):
         self.win.clear()
