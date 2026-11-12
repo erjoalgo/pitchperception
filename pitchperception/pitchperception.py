@@ -18,8 +18,7 @@ import curses
 
 try:
     from ._version import __version__
-except:
-    traceback.print_exc()
+except ImportError:
     __version__ = "unknown"
 
 
