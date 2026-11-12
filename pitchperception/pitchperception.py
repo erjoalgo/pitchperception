@@ -56,12 +56,7 @@ class PitchPerceptionChallenge(object):
         self.win.refresh()
 
     def curses_getch(self):
-        ch = self.win.getch()
-        if ch == 27:
-            ch = self.win.getch()
-            assert ch == 91
-            ch = self.win.getch()
-        return ch
+        return self.win.getch()
 
     def _play_tone_challenge(self, first, second):
         assert first != second
@@ -69,7 +64,7 @@ class PitchPerceptionChallenge(object):
         self.beep(second)
         prompt = ("Is the second pitch higher or lower "
                   "(Up: higher, Down: lower, r: repeat, q: quit)? ")
-        UP, DOWN, REPEAT, QUIT = 65, 66, 114, 113
+        UP, DOWN, REPEAT, QUIT = curses.KEY_UP, curses.KEY_DOWN, ord("r"), ord("q")
         while True:
             self.curses_print(prompt)
             ch = self.curses_getch()
@@ -124,6 +119,9 @@ class PitchPerceptionChallenge(object):
 
         with self.ncurses_win() as self.win:
             curses.noecho()
+            # let curses decode arrow keys, whichever escape sequence the
+            # terminal sends for them
+            self.win.keypad(True)
             delta = self.game_config.initial_delta
             last_delta = None
             while True:
