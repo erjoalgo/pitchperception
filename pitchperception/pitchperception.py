@@ -50,7 +50,11 @@ class PitchPerceptionChallenge(object):
     def beep(freq):
         """Beep at the given frequency in Hz."""
         cmd = ["beep", "-f", str(freq)]
-        subprocess.check_output(cmd)
+        try:
+            subprocess.check_output(cmd, stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError as ex:
+            sys.exit("'beep' failed: {}\nIt needs a PC speaker, and permission "
+                     "to use it.".format(ex.stderr.decode().strip()))
 
     def curses_print(self, message):
         self.win.clear()
