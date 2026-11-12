@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=77.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pitchperception"
+dynamic = ["version"]
+requires-python = ">=3.8"
+authors = [
+  {name = "Ernesto Alfonso", email = "erjoalgo@gmail.com"},
+]
+description = "An interactive game to test the user's pitch perception abilities."
+readme = "README.md"
+license = "GPL-3.0-or-later"
+
+[project.urls]
+Homepage = "https://github.com/erjoalgo/pitchperception"
+Repository = "https://github.com/erjoalgo/pitchperception"
+"Bug Tracker" = "https://github.com/erjoalgo/pitchperception/issues"
+
+[project.scripts]
+pitchperception = "pitchperception.pitchperception:main"
+
+[tool.setuptools]
+packages = ["pitchperception"]
+
+[tool.setuptools.dynamic]
+version = {attr = "pitchperception._version.__version__"}
