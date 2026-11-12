@@ -90,7 +90,7 @@ class PitchPerceptionChallenge(object):
         self.audio_player = audio_player
         self.win = None
 
-    def beep(self, freq):
+    def play_tone(self, freq):
         """Play a tone at the given frequency in Hz."""
         fd, path = tempfile.mkstemp(suffix=".wav")
         os.close(fd)
@@ -115,8 +115,8 @@ class PitchPerceptionChallenge(object):
 
     def _play_tone_challenge(self, first, second):
         assert first != second
-        self.beep(first)
-        self.beep(second)
+        self.play_tone(first)
+        self.play_tone(second)
         prompt = ("Is the second pitch higher or lower "
                   "(Up: higher, Down: lower, r: repeat, q: quit)? ")
         UP, DOWN, REPEAT, QUIT = curses.KEY_UP, curses.KEY_DOWN, ord("r"), ord("q")
@@ -124,8 +124,8 @@ class PitchPerceptionChallenge(object):
             self.curses_print(prompt)
             ch = self.curses_getch()
             if ch == REPEAT:
-                self.beep(first)
-                self.beep(second)
+                self.play_tone(first)
+                self.play_tone(second)
             elif ch in (UP, DOWN):
                 return (second > first) == (ch == UP)
             elif ch == QUIT:
