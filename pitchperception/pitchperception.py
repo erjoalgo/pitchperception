@@ -9,7 +9,9 @@ from http://jakemandell.com/adaptivepitch.
 
 import contextlib
 import random
+import shutil
 import subprocess
+import sys
 import time
 
 import curses
@@ -147,6 +149,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", action="version", version=__version__)
     args = parser.parse_args()
+
+    if not shutil.which("beep"):
+        sys.exit("pitchperception plays tones with the 'beep' command; "
+                 "install it first, e.g. 'sudo apt install beep'")
 
     game_config = PitchPerceptionGameConfig()
     game = PitchPerceptionChallenge(game_config)
