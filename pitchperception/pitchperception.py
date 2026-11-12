@@ -7,12 +7,17 @@ Inspired by "Measure your pitch perception abilities"
 from http://jakemandell.com/adaptivepitch.
 """
 
+import array
 import contextlib
+import math
+import os
 import random
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
+import wave
 
 import curses
 
@@ -35,25 +40,70 @@ class PitchPerceptionGameConfig(object):
         self.min_correct_attempts = min_correct_attempts
 
 
+SAMPLE_RATE = 44100
+TONE_SECONDS = 0.5
+
+# Commands that play a WAV file, in order of preference.
+AUDIO_PLAYERS = [
+    ["paplay"],         # PulseAudio, and PipeWire's PulseAudio support
+    ["pw-play"],        # PipeWire
+    ["aplay", "-q"],    # ALSA
+    ["afplay"],         # macOS
+]
+
+
+def find_audio_player():
+    """Returns the first available command to play a WAV file, or None."""
+    for cmd in AUDIO_PLAYERS:
+        if shutil.which(cmd[0]):
+            return cmd
+    return None
+
+
+def write_tone_wav(freq, path, seconds=TONE_SECONDS):
+    """Write a sine tone at freq Hz as a 16-bit mono WAV file."""
+    n_samples = int(SAMPLE_RATE * seconds)
+    # fade in and out over 10ms, so the tone doesn't start or end with a click
+    fade = int(SAMPLE_RATE * 0.01)
+    samples = array.array("h")
+    for i in range(n_samples):
+        envelope = min(1.0, i / fade, (n_samples - i) / fade)
+        value = 0.5 * envelope * math.sin(2 * math.pi * freq * i / SAMPLE_RATE)
+        samples.append(int(value * 32767))
+    if sys.byteorder == "big":
+        samples.byteswap()  # WAV data is little-endian
+    with wave.open(path, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(SAMPLE_RATE)
+        wav.writeframes(samples.tobytes())
+
+
 class UserQuitError(Exception):
     """Propagates a user quit up the stack."""
     pass
 
 class PitchPerceptionChallenge(object):
     """An interactive game to test the user's pitch perception abilities."""
-    def __init__(self, game_config):
+    def __init__(self, game_config, audio_player):
         self.game_config = game_config
+        self.audio_player = audio_player
         self.win = None
 
-    @staticmethod
-    def beep(freq):
-        """Beep at the given frequency in Hz."""
-        cmd = ["beep", "-f", str(freq)]
+    def beep(self, freq):
+        """Play a tone at the given frequency in Hz."""
+        fd, path = tempfile.mkstemp(suffix=".wav")
+        os.close(fd)
         try:
-            subprocess.check_output(cmd, stderr=subprocess.PIPE)
-        except subprocess.CalledProcessError as ex:
-            sys.exit("'beep' failed: {}\nIt needs a PC speaker, and permission "
-                     "to use it.".format(ex.stderr.decode().strip()))
+            write_tone_wav(freq, path)
+            try:
+                subprocess.check_output(self.audio_player + [path],
+                                        stderr=subprocess.PIPE)
+            except subprocess.CalledProcessError as ex:
+                sys.exit("{} failed to play a tone: {}".format(
+                    self.audio_player[0], ex.stderr.decode().strip()))
+        finally:
+            os.remove(path)
 
     def curses_print(self, message):
         self.win.clear()
@@ -153,10 +203,11 @@ def main():
     parser.add_argument("--version", action="version", version=__version__)
     args = parser.parse_args()
 
-    if not shutil.which("beep"):
-        sys.exit("pitchperception plays tones with the 'beep' command; "
-                 "install it first, e.g. 'sudo apt install beep'")
+    audio_player = find_audio_player()
+    if not audio_player:
+        sys.exit("pitchperception needs a command to play sound: one of {}"
+                 .format(", ".join(cmd[0] for cmd in AUDIO_PLAYERS)))
 
     game_config = PitchPerceptionGameConfig()
-    game = PitchPerceptionChallenge(game_config)
+    game = PitchPerceptionChallenge(game_config, audio_player)
     game.start()
