@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 """An interactive game to test the user's pitch perception abilities.
 
