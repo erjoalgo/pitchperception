@@ -12,6 +12,16 @@ authors = [
 description = "An interactive game to test the user's pitch perception abilities."
 readme = "README.md"
 license = "GPL-3.0-or-later"
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console :: Curses",
+  "Intended Audience :: End Users/Desktop",
+  "Operating System :: POSIX :: Linux",
+  "Topic :: Games/Entertainment",
+  "Topic :: Multimedia :: Sound/Audio",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+]
 
 [project.urls]
 Homepage = "https://github.com/erjoalgo/pitchperception"
