@@ -8,9 +8,9 @@ Each time you answer enough correctly, the difference between the tones is
 halved; when you miss too many, the game reports the smallest difference you
 could hear.
 
-Requirements: the tones are played with the `beep` command
-(`$ sudo apt install beep`), which needs a PC speaker and permission to use
-it, so the game won't make sound on most laptops.
+Requirements: a command to play the tones: `paplay` or `pw-play` (PulseAudio
+or PipeWire, which most Linux desktops have), `aplay` (ALSA), or `afplay`
+(macOS).
 
 To install:
 
