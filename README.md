@@ -10,7 +10,8 @@ could hear.
 
 Requirements: a command to play the tones: `paplay` or `pw-play` (PulseAudio
 or PipeWire, which most Linux desktops have), `aplay` (ALSA), or `afplay`
-(macOS).
+(macOS). The first one installed is used; to choose another, pass
+`--player`, e.g. `pitchperception --player aplay`.
 
 To install:
 

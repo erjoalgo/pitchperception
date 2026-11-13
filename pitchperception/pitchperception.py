@@ -77,10 +77,12 @@ class AudioPlayer(object):
         self.cmd = cmd
 
     @classmethod
-    def find(cls):
-        """Returns a player for the first available command, or None."""
+    def find(cls, name=None):
+        """Returns a player for the first available command, or None.
+
+        If name is given, only the command with that name is considered."""
         for cmd in cls.COMMANDS:
-            if shutil.which(cmd[0]):
+            if name in (None, cmd[0]) and shutil.which(cmd[0]):
                 return cls(cmd)
         return None
 
@@ -207,9 +209,15 @@ def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", action="version", version=__version__)
+    parser.add_argument("--player",
+                        choices=[cmd[0] for cmd in AudioPlayer.COMMANDS],
+                        help="the command to play tones with "
+                        "(default: the first one installed)")
     args = parser.parse_args()
 
-    audio_player = AudioPlayer.find()
+    audio_player = AudioPlayer.find(args.player)
+    if args.player and not audio_player:
+        sys.exit("{} is not installed".format(args.player))
     if not audio_player:
         sys.exit("pitchperception needs a command to play sound: one of {}"
                  .format(", ".join(cmd[0] for cmd in AudioPlayer.COMMANDS)))
