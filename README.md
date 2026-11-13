@@ -11,7 +11,9 @@ could hear.
 Requirements: a command to play the tones: `paplay` or `pw-play` (PulseAudio
 or PipeWire, which most Linux desktops have), `aplay` (ALSA), or `afplay`
 (macOS). The first one installed is used; to choose another, pass
-`--player`, e.g. `pitchperception --player aplay`.
+`--player`, e.g. `pitchperception --player aplay`. If you can't hear the
+tones, `pitchperception --choose-player` plays a test tone with each installed
+player and uses the first one you hear.
 
 To install:
 

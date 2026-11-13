@@ -76,30 +76,70 @@ class AudioPlayer(object):
     def __init__(self, cmd):
         self.cmd = cmd
 
+    def __str__(self):
+        return self.cmd[0]
+
+    @classmethod
+    def installed(cls):
+        """Returns a player for each available command, in order of preference."""
+        return [cls(cmd) for cmd in cls.COMMANDS if shutil.which(cmd[0])]
+
     @classmethod
     def find(cls, name=None):
         """Returns a player for the first available command, or None.
 
         If name is given, only the command with that name is considered."""
-        for cmd in cls.COMMANDS:
-            if name in (None, cmd[0]) and shutil.which(cmd[0]):
-                return cls(cmd)
+        for player in cls.installed():
+            if name in (None, str(player)):
+                return player
         return None
 
-    def play_tone(self, freq):
-        """Play a tone at the given frequency in Hz."""
+    def try_play_tone(self, freq):
+        """Play a tone at the given frequency in Hz.
+
+        Raises subprocess.CalledProcessError if the player fails."""
         fd, path = tempfile.mkstemp(suffix=".wav")
         os.close(fd)
         try:
             write_tone_wav(freq, path)
-            try:
-                subprocess.check_output(self.cmd + [path],
-                                        stderr=subprocess.PIPE)
-            except subprocess.CalledProcessError as ex:
-                sys.exit("{} failed to play a tone: {}".format(
-                    self.cmd[0], ex.stderr.decode().strip()))
+            subprocess.check_output(self.cmd + [path], stderr=subprocess.PIPE)
         finally:
             os.remove(path)
+
+    def failure_message(self, ex):
+        return "{} failed to play a tone: {}".format(
+            self, ex.stderr.decode().strip())
+
+    def play_tone(self, freq):
+        """Play a tone at the given frequency in Hz, or exit if it fails."""
+        try:
+            self.try_play_tone(freq)
+        except subprocess.CalledProcessError as ex:
+            sys.exit(self.failure_message(ex))
+
+
+def choose_player(test_freq=440):
+    """Play a test tone with each installed player, in order of preference,
+    and return the first one the user hears, or None."""
+    for player in AudioPlayer.installed():
+        while True:
+            print("Playing a test tone with {}...".format(player))
+            try:
+                player.try_play_tone(test_freq)
+            except subprocess.CalledProcessError as ex:
+                print(player.failure_message(ex))
+                break
+            try:
+                answer = input("Did you hear it (y: yes, n: no, r: repeat)? ")
+            except EOFError:
+                return None
+            answer = answer.strip().lower()
+            if answer == "y":
+                print("Using {}; to skip this next time, pass --player {}"
+                      .format(player, player))
+                return player
+            elif answer == "n":
+                break
 
 
 class UserQuitError(Exception):
@@ -209,18 +249,28 @@ def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", action="version", version=__version__)
-    parser.add_argument("--player",
-                        choices=[cmd[0] for cmd in AudioPlayer.COMMANDS],
-                        help="the command to play tones with "
-                        "(default: the first one installed)")
+    player_group = parser.add_mutually_exclusive_group()
+    player_group.add_argument("--player",
+                              choices=[cmd[0] for cmd in AudioPlayer.COMMANDS],
+                              help="the command to play tones with "
+                              "(default: the first one installed)")
+    player_group.add_argument("--choose-player", action="store_true",
+                              help="play a test tone with each installed "
+                              "player, and use the first one you hear")
     args = parser.parse_args()
 
-    audio_player = AudioPlayer.find(args.player)
-    if args.player and not audio_player:
-        sys.exit("{} is not installed".format(args.player))
-    if not audio_player:
+    if not AudioPlayer.installed():
         sys.exit("pitchperception needs a command to play sound: one of {}"
                  .format(", ".join(cmd[0] for cmd in AudioPlayer.COMMANDS)))
+    if args.choose_player:
+        audio_player = choose_player()
+        if not audio_player:
+            sys.exit("No player played a tone you could hear; check your "
+                     "sound output device and volume.")
+    else:
+        audio_player = AudioPlayer.find(args.player)
+        if not audio_player:
+            sys.exit("{} is not installed".format(args.player))
 
     game_config = PitchPerceptionGameConfig()
     game = PitchPerceptionChallenge(game_config, audio_player)
