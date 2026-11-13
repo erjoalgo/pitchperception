@@ -43,23 +43,6 @@ class PitchPerceptionGameConfig(object):
 SAMPLE_RATE = 44100
 TONE_SECONDS = 0.5
 
-# Commands that play a WAV file, in order of preference.
-AUDIO_PLAYERS = [
-    ["paplay"],         # PulseAudio, and PipeWire's PulseAudio support
-    ["pw-play"],        # PipeWire
-    ["aplay", "-q"],    # ALSA
-    ["afplay"],         # macOS
-]
-
-
-def find_audio_player():
-    """Returns the first available command to play a WAV file, or None."""
-    for cmd in AUDIO_PLAYERS:
-        if shutil.which(cmd[0]):
-            return cmd
-    return None
-
-
 def write_tone_wav(freq, path, seconds=TONE_SECONDS):
     """Write a sine tone at freq Hz as a 16-bit mono WAV file."""
     n_samples = int(SAMPLE_RATE * seconds)
@@ -79,6 +62,44 @@ def write_tone_wav(freq, path, seconds=TONE_SECONDS):
         wav.writeframes(samples.tobytes())
 
 
+class AudioPlayer(object):
+    """Plays tones with a command that plays a WAV file."""
+
+    # Commands that play a WAV file, in order of preference.
+    COMMANDS = [
+        ["paplay"],         # PulseAudio, and PipeWire's PulseAudio support
+        ["pw-play"],        # PipeWire
+        ["aplay", "-q"],    # ALSA
+        ["afplay"],         # macOS
+    ]
+
+    def __init__(self, cmd):
+        self.cmd = cmd
+
+    @classmethod
+    def find(cls):
+        """Returns a player for the first available command, or None."""
+        for cmd in cls.COMMANDS:
+            if shutil.which(cmd[0]):
+                return cls(cmd)
+        return None
+
+    def play_tone(self, freq):
+        """Play a tone at the given frequency in Hz."""
+        fd, path = tempfile.mkstemp(suffix=".wav")
+        os.close(fd)
+        try:
+            write_tone_wav(freq, path)
+            try:
+                subprocess.check_output(self.cmd + [path],
+                                        stderr=subprocess.PIPE)
+            except subprocess.CalledProcessError as ex:
+                sys.exit("{} failed to play a tone: {}".format(
+                    self.cmd[0], ex.stderr.decode().strip()))
+        finally:
+            os.remove(path)
+
+
 class UserQuitError(Exception):
     """Propagates a user quit up the stack."""
     pass
@@ -90,21 +111,6 @@ class PitchPerceptionChallenge(object):
         self.audio_player = audio_player
         self.win = None
 
-    def play_tone(self, freq):
-        """Play a tone at the given frequency in Hz."""
-        fd, path = tempfile.mkstemp(suffix=".wav")
-        os.close(fd)
-        try:
-            write_tone_wav(freq, path)
-            try:
-                subprocess.check_output(self.audio_player + [path],
-                                        stderr=subprocess.PIPE)
-            except subprocess.CalledProcessError as ex:
-                sys.exit("{} failed to play a tone: {}".format(
-                    self.audio_player[0], ex.stderr.decode().strip()))
-        finally:
-            os.remove(path)
-
     def curses_print(self, message):
         self.win.clear()
         self.win.addstr(0, 0, message)
@@ -115,8 +121,8 @@ class PitchPerceptionChallenge(object):
 
     def _play_tone_challenge(self, first, second):
         assert first != second
-        self.play_tone(first)
-        self.play_tone(second)
+        self.audio_player.play_tone(first)
+        self.audio_player.play_tone(second)
         prompt = ("Is the second pitch higher or lower "
                   "(Up: higher, Down: lower, r: repeat, q: quit)? ")
         UP, DOWN, REPEAT, QUIT = curses.KEY_UP, curses.KEY_DOWN, ord("r"), ord("q")
@@ -124,8 +130,8 @@ class PitchPerceptionChallenge(object):
             self.curses_print(prompt)
             ch = self.curses_getch()
             if ch == REPEAT:
-                self.play_tone(first)
-                self.play_tone(second)
+                self.audio_player.play_tone(first)
+                self.audio_player.play_tone(second)
             elif ch in (UP, DOWN):
                 return (second > first) == (ch == UP)
             elif ch == QUIT:
@@ -203,10 +209,10 @@ def main():
     parser.add_argument("--version", action="version", version=__version__)
     args = parser.parse_args()
 
-    audio_player = find_audio_player()
+    audio_player = AudioPlayer.find()
     if not audio_player:
         sys.exit("pitchperception needs a command to play sound: one of {}"
-                 .format(", ".join(cmd[0] for cmd in AUDIO_PLAYERS)))
+                 .format(", ".join(cmd[0] for cmd in AudioPlayer.COMMANDS)))
 
     game_config = PitchPerceptionGameConfig()
     game = PitchPerceptionChallenge(game_config, audio_player)
