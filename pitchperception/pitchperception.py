@@ -352,3 +352,7 @@ def main():
     game_config = PitchPerceptionGameConfig()
     game = PitchPerceptionChallenge(game_config, audio_player)
     game.start()
+
+
+if __name__ == "__main__":
+    main()
