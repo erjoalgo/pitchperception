@@ -221,17 +221,50 @@ class PitchPerceptionChallenge(object):
         self.game_config = game_config
         self.audio_player = audio_player
         self.win = None
+        # (delta, [whether each attempt was correct]) for each delta tried
+        self.attempts = []
+        # attributes for the box of a correct and an incorrect attempt
+        self.box_attrs = {True: curses.A_NORMAL, False: curses.A_NORMAL}
+
+    def init_colors(self):
+        if not curses.has_colors():
+            return
+        curses.start_color()
+        # keep the terminal's own colors for everything else
+        curses.use_default_colors()
+        curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_GREEN)
+        curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_RED)
+        self.box_attrs = {True: curses.color_pair(1),
+                          False: curses.color_pair(2)}
 
     def curses_print(self, message):
         self.win.clear()
         self.win.addstr(0, 0, message)
+        y, x = self.win.getyx()
+        self.draw_attempts(y + 2)
+        # leave the cursor after the message, where the user answers
+        self.win.move(y, x)
         self.win.refresh()
+
+    def draw_attempts(self, top):
+        """Draw a row for each delta tried, from the top row, with a green box
+        for each correct attempt and a red one for each incorrect one."""
+        height, _ = self.win.getmaxyx()
+        # the most recent rows that fit
+        rows = self.attempts[max(0, len(self.attempts) - (height - top)):]
+        for y, (delta, results) in enumerate(rows, top):
+            self.win.addstr(y, 0, "{:>8g}Hz ".format(delta))
+            for is_correct in results:
+                self.win.addstr(" o " if is_correct else " x ",
+                                self.box_attrs[is_correct])
+                self.win.addstr(" ")
 
     def curses_getch(self):
         return self.win.getch()
 
     def _play_tone_challenge(self, first, second):
         assert first != second
+        self.curses_print("Listen...")
         self.audio_player.play_tone(first)
         self.audio_player.play_tone(second)
         prompt = ("Is the second pitch higher or lower "
@@ -241,6 +274,7 @@ class PitchPerceptionChallenge(object):
             self.curses_print(prompt)
             ch = self.curses_getch()
             if ch == REPEAT:
+                self.curses_print("Listen...")
                 self.audio_player.play_tone(first)
                 self.audio_player.play_tone(second)
             elif ch in (UP, DOWN):
@@ -259,6 +293,8 @@ class PitchPerceptionChallenge(object):
         """Returns true iff the user can distinguish pitch up to delta Hz."""
         assert delta > 0
         correct, incorrect = 0, 0
+        results = []
+        self.attempts.append((delta, results))
 
         while True:
             first = self.game_config.ref_tone
@@ -266,6 +302,7 @@ class PitchPerceptionChallenge(object):
             if self.flip_coin():
                 first, second = second, first
             is_correct = self._play_tone_challenge(first, second)
+            results.append(is_correct)
             if is_correct:
                 correct += 1
                 if correct >= self.game_config.min_correct_attempts:
@@ -294,6 +331,7 @@ class PitchPerceptionChallenge(object):
             # let curses decode arrow keys, whichever escape sequence the
             # terminal sends for them
             self.win.keypad(True)
+            self.init_colors()
             delta = self.game_config.initial_delta
             last_delta = None
             while True:
