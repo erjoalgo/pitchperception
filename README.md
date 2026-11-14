@@ -15,7 +15,7 @@ or PipeWire, which most Linux desktops have), `aplay` (ALSA), or `afplay`
 than the default one, such as HDMI, pass its sink name (from
 `pactl list short sinks`) with `--device`. If you can't hear the
 tones, `pitchperception --choose-player` plays a test tone with each installed
-player and uses the first one you hear.
+player, on each output, and uses the first one you hear.
 
 To install:
 

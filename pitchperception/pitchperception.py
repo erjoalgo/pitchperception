@@ -141,10 +141,51 @@ class AudioPlayer(object):
             sys.exit(self.failure_message(ex))
 
 
-def choose_player(test_freq=440):
-    """Play a test tone with each installed player, in order of preference,
-    and return the first one the user hears, or None."""
+def list_sinks():
+    """Returns the names of the PulseAudio or PipeWire sinks, the default one
+    first, or an empty list if they can't be listed."""
+    if not shutil.which("pactl"):
+        return []
+    env = dict(os.environ, LC_ALL="C")  # for the "Default Sink:" label
+    try:
+        sinks = subprocess.check_output(["pactl", "list", "short", "sinks"],
+                                        stderr=subprocess.DEVNULL, env=env,
+                                        universal_newlines=True)
+        info = subprocess.check_output(["pactl", "info"],
+                                       stderr=subprocess.DEVNULL, env=env,
+                                       universal_newlines=True)
+    except subprocess.CalledProcessError:
+        return []
+    # each line is: index, name, driver, sample spec, state
+    names = [line.split("\t")[1] for line in sinks.splitlines() if "\t" in line]
+    default = None
+    for line in info.splitlines():
+        if line.startswith("Default Sink:"):
+            default = line.split(":", 1)[1].strip()
+    names.sort(key=lambda name: name != default)
+    return names
+
+
+def candidate_outputs():
+    """Yields a player for each installed player, in order of preference, and
+    for the ones that can play to a given sink, one for each sink."""
+    sinks = list_sinks()
     for player in AudioPlayer.installed():
+        if sinks and player.cmd[0] in AudioPlayer.DEVICE_OPTIONS:
+            for sink in sinks:
+                yield AudioPlayer(player.cmd, sink)
+        else:
+            yield player
+
+
+def choose_player(test_freq=440):
+    """Play a test tone with each installed player, on each sink it can play
+    to, and return the first one the user hears, or None."""
+    # sinks the user didn't hear from one player, to skip with the others
+    unheard_sinks = set()
+    for player in candidate_outputs():
+        if player.device in unheard_sinks:
+            continue
         while True:
             print("Playing a test tone with {}...".format(player))
             try:
@@ -158,10 +199,15 @@ def choose_player(test_freq=440):
                 return None
             answer = answer.strip().lower()
             if answer == "y":
-                print("Using {}; to skip this next time, pass --player {}"
-                      .format(player, player))
+                options = "--player {}".format(player.cmd[0])
+                if player.device:
+                    options += " --device {}".format(player.device)
+                print("Using {}; to skip this next time, pass {}"
+                      .format(player, options))
                 return player
             elif answer == "n":
+                if player.device:
+                    unheard_sinks.add(player.device)
                 break
 
 
