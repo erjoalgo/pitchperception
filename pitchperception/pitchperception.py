@@ -246,6 +246,12 @@ class PitchPerceptionChallenge(object):
         self.win.move(y, x)
         self.win.refresh()
 
+    def describe_delta(self, delta):
+        """Describes a pitch difference in Hz, and in cents above the
+        reference tone, to 3 significant figures."""
+        cents = 1200 * math.log2(1 + delta / self.game_config.ref_tone)
+        return "{:.3g}Hz ({:.3g} cents)".format(delta, cents)
+
     def draw_attempts(self, top):
         """Draw a row for each delta tried, from the top row, with a green box
         for each correct attempt and a red one for each incorrect one."""
@@ -253,7 +259,7 @@ class PitchPerceptionChallenge(object):
         # the most recent rows that fit
         rows = self.attempts[max(0, len(self.attempts) - (height - top)):]
         for y, (delta, results) in enumerate(rows, top):
-            self.win.addstr(y, 0, "{:>8g}Hz ".format(delta))
+            self.win.addstr(y, 0, "{:>22} ".format(self.describe_delta(delta)))
             for is_correct in results:
                 self.win.addstr(" o " if is_correct else " x ",
                                 self.box_attrs[is_correct])
@@ -347,7 +353,7 @@ class PitchPerceptionChallenge(object):
                 else:
                     end_message = (
                         ("your ear is sensitive to pitch differences "
-                         "up to {}Hz").format(delta*2))
+                         "up to {}").format(self.describe_delta(delta*2)))
                     break
 
         print (end_message)
