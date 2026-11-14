@@ -73,10 +73,20 @@ class AudioPlayer(object):
         ["afplay"],         # macOS
     ]
 
-    def __init__(self, cmd):
+    # Options to play to a given PulseAudio or PipeWire sink, for the commands
+    # that support one.
+    DEVICE_OPTIONS = {
+        "paplay": "--device={}",
+        "pw-play": "--target={}",
+    }
+
+    def __init__(self, cmd, device=None):
         self.cmd = cmd
+        self.device = device
 
     def __str__(self):
+        if self.device:
+            return "{} on {}".format(self.cmd[0], self.device)
         return self.cmd[0]
 
     @classmethod
@@ -85,14 +95,27 @@ class AudioPlayer(object):
         return [cls(cmd) for cmd in cls.COMMANDS if shutil.which(cmd[0])]
 
     @classmethod
-    def find(cls, name=None):
+    def find(cls, name=None, device=None):
         """Returns a player for the first available command, or None.
 
-        If name is given, only the command with that name is considered."""
+        If name is given, only the command with that name is considered.
+        If device is given, only commands that can play to it are, and the
+        player plays to it."""
         for player in cls.installed():
-            if name in (None, str(player)):
+            if name not in (None, player.cmd[0]):
+                continue
+            if device is None:
                 return player
+            if player.cmd[0] in cls.DEVICE_OPTIONS:
+                return cls(player.cmd, device)
         return None
+
+    def command(self, path):
+        """Returns the command to play the WAV file at path."""
+        cmd = list(self.cmd)
+        if self.device:
+            cmd.append(self.DEVICE_OPTIONS[self.cmd[0]].format(self.device))
+        return cmd + [path]
 
     def try_play_tone(self, freq):
         """Play a tone at the given frequency in Hz.
@@ -102,7 +125,7 @@ class AudioPlayer(object):
         os.close(fd)
         try:
             write_tone_wav(freq, path)
-            subprocess.check_output(self.cmd + [path], stderr=subprocess.PIPE)
+            subprocess.check_output(self.command(path), stderr=subprocess.PIPE)
         finally:
             os.remove(path)
 
@@ -257,7 +280,13 @@ def main():
     player_group.add_argument("--choose-player", action="store_true",
                               help="play a test tone with each installed "
                               "player, and use the first one you hear")
+    parser.add_argument("--device",
+                        help="the PulseAudio or PipeWire sink to play tones "
+                        "to, with paplay or pw-play; 'pactl list short sinks' "
+                        "lists them")
     args = parser.parse_args()
+    if args.device and args.choose_player:
+        parser.error("--device can't be used with --choose-player")
 
     if not AudioPlayer.installed():
         sys.exit("pitchperception needs a command to play sound: one of {}"
@@ -268,9 +297,11 @@ def main():
             sys.exit("No player played a tone you could hear; check your "
                      "sound output device and volume.")
     else:
-        audio_player = AudioPlayer.find(args.player)
+        audio_player = AudioPlayer.find(args.player, args.device)
         if not audio_player:
-            sys.exit("{} is not installed".format(args.player))
+            if args.player and not shutil.which(args.player):
+                sys.exit("{} is not installed".format(args.player))
+            sys.exit("--device needs paplay or pw-play")
 
     game_config = PitchPerceptionGameConfig()
     game = PitchPerceptionChallenge(game_config, audio_player)
