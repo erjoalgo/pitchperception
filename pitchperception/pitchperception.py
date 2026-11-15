@@ -340,12 +340,14 @@ class PitchPerceptionChallenge(object):
             self.init_colors()
             delta = self.game_config.initial_delta
             last_delta = None
+            levels_passed = 0
             while True:
                 try:
                     passed = self._challenge_at_delta(delta)
                 except UserQuitError:
                     passed = False
                 if passed:
+                    levels_passed += 1
                     last_delta, delta = delta, delta/2.0
                 elif last_delta is None:
                     end_message = "unable to determine pitch perception"
@@ -355,6 +357,8 @@ class PitchPerceptionChallenge(object):
                         ("your ear is sensitive to pitch differences "
                          "up to {}").format(self.describe_delta(delta*2)))
                     break
+            end_message = "Score: {} level{} passed\n{}".format(
+                levels_passed, "" if levels_passed == 1 else "s", end_message)
 
         print (end_message)
 
