@@ -40,6 +40,14 @@ class PitchPerceptionGameConfig(object):
         self.min_correct_attempts = min_correct_attempts
 
 
+# The median pitch discrimination threshold of the native English speakers
+# in a study of 918 healthy adults, in cents: "Factors affecting pitch
+# discrimination performance in a cohort of extensively phenotyped healthy
+# volunteers", Scientific Reports, 2017,
+# https://doi.org/10.1038/s41598-017-16526-8. Its test procedure differs from
+# this game's, so comparing to it is only rough.
+MEDIAN_THRESHOLD_CENTS = 14.52
+
 SAMPLE_RATE = 44100
 TONE_SECONDS = 0.5
 
@@ -246,11 +254,25 @@ class PitchPerceptionChallenge(object):
         self.win.move(y, x)
         self.win.refresh()
 
+    def cents(self, delta):
+        """Returns a pitch difference in cents above the reference tone."""
+        return 1200 * math.log2(1 + delta / self.game_config.ref_tone)
+
     def describe_delta(self, delta):
         """Describes a pitch difference in Hz, and in cents above the
         reference tone, to 3 significant figures."""
-        cents = 1200 * math.log2(1 + delta / self.game_config.ref_tone)
-        return "{:.3g}Hz ({:.3g} cents)".format(delta, cents)
+        return "{:.3g}Hz ({:.3g} cents)".format(delta, self.cents(delta))
+
+    @staticmethod
+    def compare_to_median(cents):
+        """Compares a threshold in cents to the median adult's."""
+        if cents <= MEDIAN_THRESHOLD_CENTS:
+            ratio, comparison = MEDIAN_THRESHOLD_CENTS / cents, "finer"
+        else:
+            ratio, comparison = cents / MEDIAN_THRESHOLD_CENTS, "coarser"
+        return ("about {:.2g} times {} than the median adult's in one study "
+                "({:.3g} cents)").format(ratio, comparison,
+                                          MEDIAN_THRESHOLD_CENTS)
 
     def draw_attempts(self, top):
         """Draw a row for each delta tried, from the top row, with a green box
@@ -354,8 +376,10 @@ class PitchPerceptionChallenge(object):
                     break
                 else:
                     end_message = (
-                        ("your ear is sensitive to pitch differences "
-                         "up to {}").format(self.describe_delta(delta*2)))
+                        "your ear is sensitive to pitch differences up to "
+                        "{},\n{}".format(
+                            self.describe_delta(last_delta),
+                            self.compare_to_median(self.cents(last_delta))))
                     break
             end_message = "Score: {} level{} passed\n{}".format(
                 levels_passed, "" if levels_passed == 1 else "s", end_message)
